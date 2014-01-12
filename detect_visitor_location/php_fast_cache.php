@@ -1,9 +1,9 @@
 <?php
-/* Revision 618
+/* Revision 620
  * ALl EXAMPLE & DOCUMENT ARE ON www.phpFastCache.com
- * IF YOU FOUND A BUG, PLEASE GO THERE: https://github.com/khoaofgod/phpfastcache/issues?state=open
- * Please feel free
+ * IF YOU FOUND A BUG, PLEASE GO THERE: http://www.codehelper.io <-- Post your issues and I will fix it.
  * Open new issue and I will fix it for you in 24 hours
+ * I stopped support issues on GitHub
  */
 
 class phpFastCache {
@@ -1130,7 +1130,12 @@ allow from 127.0.0.1";
     }
 
     private static function xcache_cleanup($option = array()) {
-        xcache_clear_cache(XC_TYPE_VAR);
+        // Revision 621
+
+        $cnt = xcache_count(XC_TYPE_VAR);
+        for ($i=0; $i < $cnt; $i++) {
+            xcache_clear_cache(XC_TYPE_VAR, $i);
+        }
         return true;
     }
 
@@ -1247,13 +1252,13 @@ allow from 127.0.0.1";
      * Begin Memcache Static
      * http://www.php.net/manual/en/class.memcache.php
      */
-    private static function memcache_addserver() {
+    public static function memcache_addserver() {
         if(!isset(self::$checked['memcache'])) {
             self::$checked['memcache'] = array();
         }
 
         if(self::$objects['memcache'] == "") {
-            self::$objects['memcache'] = new Memcache;
+            self::$objects['memcache'] = new Memcache();
 
             foreach(self::$server as $server) {
                 $name = isset($server[0]) ? $server[0] : "";
@@ -1337,13 +1342,13 @@ allow from 127.0.0.1";
      * Begin Memcached Static
      */
 
-    private static function memcached_addserver() {
+    public static function memcached_addserver() {
         if(!isset(self::$checked['memcached'])) {
             self::$checked['memcached'] = array();
         }
 
         if(self::$objects['memcached'] == "") {
-            self::$objects['memcached'] = new Memcache;
+            self::$objects['memcached'] = new Memcached();
 
             foreach(self::$server as $server) {
                 $name = isset($server[0]) ? $server[0] : "";
@@ -1632,6 +1637,8 @@ allow from 127.0.0.1";
 
         if(!isset($res['value'])) {
             return null;
+        } elseif((Int)$res['added'] + (Int)$res['endin'] <= (Int)@date("U")) {
+            return null;
         } else {
             // decode value on SQL;
             $data = self::decode($res['value']);
@@ -1778,8 +1785,17 @@ allow from 127.0.0.1";
                     }
 
                     $time = filemtime(self::getPath()."/".$dbname);
-                    if($time + (3600*48) < @date("U")) {
+                    if($time + (3600*24) < @date("U")) {
                         $vacuum = true;
+                    }
+
+                    // Revision 619
+                    // auto Vaccuum() every 48 hours
+                    if($vacuum == true) {
+                        if(!isset($option['skip_clean'])) {
+                            self::$objects['pdo']->exec("DELETE FROM ".self::$table." WHERE (`added` + `endin`) < ".@date("U"));
+                        }
+                        self::$objects['pdo']->exec('VACUUM');
                     }
 
 
@@ -1789,20 +1805,8 @@ allow from 127.0.0.1";
                 }
 
 
-                // remove old cache
-                if(!isset($option['skip_clean'])) {
 
-                    try {
-                        self::$objects['pdo']->exec("DELETE FROM ".self::$table." WHERE (`added` + `endin`) < ".@date("U"));
-                    } catch(PDOexception  $e) {
-                        die("Please re-upload the caching file ".$dbname." and chmod it 0777 or Writable permission!");
-                    }
-                }
 
-                // auto Vaccuum() every 48 hours
-                if($vacuum == true) {
-                    self::$objects['pdo']->exec('VACUUM');
-                }
 
 
                 return self::$objects['pdo'];
@@ -1841,32 +1845,27 @@ allow from 127.0.0.1";
                         }
 
                         $time = filemtime(self::getPath()."/".$dbname);
-                        if($time + (3600*48) < @date("U")) {
+                        if($time + (3600*24) < @date("U")) {
                             $vacuum = true;
                         }
 
-
+                        // Revision 619
+                        if($vacuum == true) {
+                            if(!isset($option['skip_clean'])) {
+                                self::$multiPDO[$dbname]->exec("DELETE FROM ".self::$table." WHERE (`added` + `endin`) < ".@date("U"));
+                            }
+                            self::$multiPDO[$dbname]->exec('VACUUM');
+                        }
 
                     } catch (PDOexception  $e) {
-                        die("Can't connect to caching file ".self::getPath()."/".$dbname);
+                        // Revision 619
+                       die("Can't connect to caching file ".self::getPath()."/".$dbname);
                     }
 
 
                 }
 
-                // remove old cache
-                if(!isset($option['skip_clean'])) {
-                    try {
-                        self::$multiPDO[$dbname]->exec("DELETE FROM ".self::$table." WHERE (`added` + `endin`) < ".@date("U"));
-                    } catch(PDOexception  $e) {
-                        die("Please re-upload the caching file ".$dbname." and chmod it 0777 or Writable permission!");
-                    }
-                }
 
-                // auto Vaccuum() every 48 hours
-                if($vacuum == true) {
-                    self::$multiPDO[$dbname]->exec('VACUUM');
-                }
 
 
                 return self::$multiPDO[$dbname];

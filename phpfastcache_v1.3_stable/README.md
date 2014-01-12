@@ -1,3 +1,5 @@
+Simple Yet Powerful PHP Caching Class
+---------------------------
 More information at http://www.phpfastcache.com
 One Class uses for All Cache. You don't need to rewrite your code many times again.
 Supported: Files, MemCache, MemCached, APC, WinCache, X-Cache, PDO with SQLite
@@ -10,9 +12,11 @@ With phpFastCache, your page only send 1 query to DB, and use the cache to serve
 ```php
 <?php
     include("php_fast_cache.php");
+    phpFastCache::$storage = "auto";
+
     // try to get from Cache first.
     $products = phpFastCache::get("products_page");
-    phpFastCache::$storage = "auto";
+
 
     if($products == null) {
         $products = YOUR DB QUERIES || GET_PRODUCTS_FUNCTION;
