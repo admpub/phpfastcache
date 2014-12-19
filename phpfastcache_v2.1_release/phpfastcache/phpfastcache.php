@@ -104,6 +104,101 @@ class phpFastCache {
         return $object['value'];
     }
 
+    function _get($key){
+        // this method gets values by array-style keys: arrayName[key1][key2]
+    	$result = null;
+    	$array = Array();
+    	$array_name = null;
+
+    	// Get array name
+    	$array_name_mask = "#^[a-zA-Z\d\_$]*#";
+    	preg_match($array_name_mask, $key, $array_name);
+    	$array_name = $array_name[0];
+
+    	if (!empty($array_name)){
+    		// get value
+    		$keys = Array();
+    		$array = $this->get($array_name);
+
+    		$pattern = '#\[[a-zA-Z\'\"\/\_\d]*\]#';
+    		preg_match_all($pattern, $key, $keys);
+    		$keys = $keys[0];
+
+    		if (!empty($keys) && !empty($array)) {
+	    		foreach ($keys as $k => $v) {
+	    			$keys[$k] = substr($v, 1, -1);
+	    		}
+	    		foreach ($keys as $subkey){
+					if (array_key_exists($subkey, $array)) {
+		    			$result = $array[$subkey];
+		    			if (is_array($result)) $array = $result;
+	    			} else $result = null;
+	    		}
+    		} else {
+    			$result = $array;
+    		}
+		}
+
+		return $result;
+    }
+
+	function _set($key, $value, $time = 600){
+	    // sets values by array-style keys: arrayName[key1][key2]
+        $result = Array();
+        $array_name = null;
+
+        $key_list = Array();
+
+        // get array name
+        $array_name_pattern = "#^[a-zA-Z\d\_$]*#";
+        preg_match($array_name_pattern, $key, $array_name);
+        $array_name = $array_name[0];
+
+        $key_pattern = '#\[[a-zA-Z\'\"\/\_\d]*\]#';
+        preg_match_all($key_pattern, $key, $keys);
+        $keys = $keys[0];
+
+        if (!empty($keys)) {
+            foreach ($keys as $k => $v) {
+                // load key queue
+                $key_list[] = substr($v, 1, -1);
+            }
+
+            $orig_array = $this->get($array_name);
+            $result = $this->replace($key_list, $orig_array, $value);
+            // update cache
+            $this->set($array_name, $result, $time);
+        }
+	}
+
+	function replace($key_list, &$array, $value){
+	    if (!empty($key_list)) {
+	        $new_key = array_shift($key_list);
+	        $new_value = &$array[$new_key];
+
+            if (!empty($key_list)) {
+                // need deeper
+                $this->replace($key_list, $new_value, $value);
+	        } else {
+	            // found target
+	            if ($value){
+	                // update
+	                $new_value = $value;
+	            } else {
+	                // delete
+	                unset($array[$new_key]);
+	            }
+	        }
+	    }
+
+        return $array;
+    }
+
+    function _delete($key){
+        // removes values by array-style keys: arrayName[key1][key2]
+        $this->_set($key, null);
+    }
+
     function getInfo($keyword, $option = array()) {
         if($this->is_driver == true) {
             $object = $this->driver_get($keyword,$option);
@@ -161,6 +256,25 @@ class phpFastCache {
         } else {
             return true;
         }
+
+    }
+    
+    // Searches though the cache for keys that match the given query.
+    // `$query` is a glob-like, which supports these two special characters:
+    // - "*" - match 0 or more characters.
+    // - "?" - match one character.
+    // The function returns an array with the matched key/value pairs.
+    function search($query) {
+        if($this->is_driver == true) {
+            if(method_exists($this,"driver_search")) {
+                return $this->driver_search($query);
+            }
+        } else {
+            if(method_exists($this->driver,"driver_isExisting")) {
+                return $this->driver->driver_search($query);
+            }
+        }
+        throw new Exception('Search method is not supported by this driver.');
 
     }
 
